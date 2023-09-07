@@ -1,13 +1,14 @@
 # ☁️ 天气预报
 
 
-本集成为HomeAssistant的中国用户提供天气实体(`weather`)，支持15天及逐小时预报、各种生活指数，兼容彩云卡片，无需申请appkey。
+本集成为HomeAssistant的中国用户提供天气实体(`weather`)，支持15天及逐小时预报、各种生活指数，兼容[彩云卡片](https://github.com/fineemb/lovelace-colorfulclouds-weather-card)，无需申请appkey。
+
 
 > **Note**
+> 
+> 如果你想使用彩云卡片，请在配置集成时勾选`兼容彩云卡片`。
 >
 > 由于没有降水量及云层覆盖率数据，且彩云卡片需要这些数据，本集成提供的降水量及云层覆盖率是根据天气状况给的固定数据，仅供参考。
-> 
-> 如果你想使用彩云卡片，请在配置集成时勾选`☑️兼容彩云卡片`。
 
 
 <a name="install"></a>
@@ -38,3 +39,7 @@ wget -q -O - https://hacs.vip/get | HUB_DOMAIN=ghproxy.com/github.com DOMAIN=tia
 ## 配置
 
 > [⚙️ 配置](https://my.home-assistant.io/redirect/config) > 设备与服务 > [🧩 集成](https://my.home-assistant.io/redirect/integrations) > [➕ 添加集成](https://my.home-assistant.io/redirect/config_flow_start?domain=tianqi) > 🔍 搜索 [`天气预报`](https://my.home-assistant.io/redirect/config_flow_start?domain=tianqi)
+
+
+## 截图
+<img width="800" alt="tianqi" src="https://github.com/hasscc/tianqi/assets/4549099/031fd05a-6b83-46f5-9c69-74d765990faf">
