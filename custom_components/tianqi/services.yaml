@@ -1,0 +1,27 @@
+get_station:
+  description: 获取气象站信息
+  fields:
+    area_id:
+      description: 区域ID
+      example: 101020100
+      selector:
+        text:
+    lat:
+      description: 纬度(默认从HA配置中获取)
+      example: 31.213
+      selector:
+        text:
+    lng:
+      description: 经度(默认从HA配置中获取)
+      example: 121.445
+      selector:
+        text:
+
+update_summary:
+  description: 更新天气实况
+
+update_dailies:
+  description: 更新天气预报(每日)
+
+update_hourlies:
+  description: 更新天气预报(每小时)
