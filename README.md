@@ -42,4 +42,5 @@ wget -q -O - https://hacs.vip/get | HUB_DOMAIN=ghproxy.com/github.com DOMAIN=tia
 
 
 ## 截图
-<img width="800" alt="tianqi" src="https://github.com/hasscc/tianqi/assets/4549099/031fd05a-6b83-46f5-9c69-74d765990faf">
+<img width="800" alt="tianqi" src="https://github.com/hasscc/tianqi/assets/4549099/545e5c98-dce3-46b6-95c0-3e42d8a26a9a">
+
