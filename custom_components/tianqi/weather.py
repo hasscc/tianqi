@@ -19,7 +19,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     WeatherEntityFeature = None
 
-from . import TianqiClient, async_add_setuper
+from . import TianqiClient, async_add_setuper, HTTP_REFERER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,8 +96,23 @@ class WeatherEntity(BaseEntity):
             'forecast_minutely': self.client.data.get('minutely', {}).get('msg'),
             'forecast_hourly': dataZS.get('ct_des_s'),
             'forecast_keypoint': dataZS.get('ys_des_s'),
+            'forecast_alert': {'status': '', 'content': []},
             'updated_time': dataSK.get('time'),
         }
+
+        if alarms := dat.get('alarms') or []:
+            self._attr_extra_state_attributes['forecast_alert'] = {'status': 'ok', 'content': [
+                {
+                    'province': v.get('w1'),
+                    'city': v.get('w2'),
+                    'code': f'{v.get("w4")}{v.get("w6")}',
+                    'title': v.get('w13', ''),
+                    'description': v.get('w9', ''),
+                    'alertld': v.get('w16'),
+                    'link': f'{HTTP_REFERER}warning/publish_area.shtml?code={self.client.area_id}',
+                }
+                for v in alarms
+            ]}
 
         indexes = {}
         for k, v in dataZS.items():

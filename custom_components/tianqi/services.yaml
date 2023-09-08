@@ -20,6 +20,9 @@ get_station:
 update_summary:
   description: 更新天气实况
 
+update_alarms:
+  description: 更新预警信息
+
 update_dailies:
   description: 更新天气预报(每日)
 

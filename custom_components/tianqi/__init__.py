@@ -51,6 +51,14 @@ async def async_setup(hass: HomeAssistant, hass_config):
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    async def update_alarms(call: ServiceCall):
+        return await client.update_alarms(**call.data)
+    hass.services.async_register(
+        DOMAIN, 'update_alarms', update_alarms,
+        schema=vol.Schema({}, extra=vol.ALLOW_EXTRA),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
     async def update_dailies(call: ServiceCall):
         return await client.update_dailies(**call.data)
     hass.services.async_register(
@@ -150,6 +158,12 @@ class TianqiClient:
         }
 
         self.coordinators = [
+            DataUpdateCoordinator(
+                hass, _LOGGER,
+                name='alarms',
+                update_method=self.update_alarms,
+                update_interval=timedelta(minutes=5),
+            ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='summary',
@@ -307,6 +321,22 @@ class TianqiClient:
 
         if match := re.search(r'dataZS\s*=\s*({.*?})\s*;', txt, re.DOTALL):
             self.data['dataZS'] = (json.loads(match.group(1)) or {}).get('zs') or {}
+
+        return self.data
+
+    async def update_alarms(self, **kwargs):
+        api = self.api_url('dingzhi/%s.html' % kwargs.get('area_id', self.area_id))
+        res = await self.http.get(api, allow_redirects=False)
+        txt = await res.text()
+        if not txt:
+            raise IntegrationError(f'Empty response from: {api}')
+        if res.status != 200:
+            self.data['alarms_text'] = txt
+        else:
+            self.data.pop('alarms_text', None)
+
+        if match := re.search(r'var alarmDZ\w*\s*=\s*({.*})', txt, re.DOTALL):
+            self.data['alarms'] = (json.loads(match.group(1)) or {}).get('w') or []
 
         return self.data
 
