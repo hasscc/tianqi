@@ -21,7 +21,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 DOMAIN = 'tianqi'
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORTED_DOMAINS = ['weather']
+SUPPORTED_PLATFORMS = [Platform.WEATHER]
+HTTP_REFERER = base64.b64decode('aHR0cHM6Ly9tLndlYXRoZXIuY29tLmNuLw==').decode()
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_1) AppleWebKit/537 (KHTML, like Gecko) Chrome/116.0 Safari/537'
 
 
@@ -78,7 +79,7 @@ async def async_setup(hass: HomeAssistant, hass_config):
         await asyncio.gather(
             *[
                 hass.helpers.discovery.async_load_platform(domain, DOMAIN, config, config)
-                for domain in SUPPORTED_DOMAINS
+                for domain in SUPPORTED_PLATFORMS
             ]
         )
 
@@ -96,7 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         },
     })
 
-    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_DOMAINS)
+    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     if client := await TianqiClient.from_config(hass, entry):
@@ -116,7 +117,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass.data[DOMAIN]['clients'].pop(entry.entry_id)
         _LOGGER.info('Unload client: %s', [entry.entry_id, client.station])
 
-    await hass.config_entries.async_unload_platforms(entry, SUPPORTED_DOMAINS)
+    await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
     return True
 
 async def async_add_setuper(hass: HomeAssistant, config, domain, setuper):
@@ -144,7 +145,7 @@ class TianqiClient:
             auto_cleanup=False,
         )
         self.http._default_headers = {
-            'Referer': base64.b64decode('aHR0cHM6Ly9tLndlYXRoZXIuY29tLmNuLw==').decode(),
+            'Referer': HTTP_REFERER,
             'User-Agent': USER_AGENT,
         }
 
@@ -205,10 +206,10 @@ class TianqiClient:
         if not self.station:
             self.station = await self.get_station()
 
-        def coordinator_handler():
-            pass
-
         for coord in self.coordinators:
+            def coordinator_handler():
+                _LOGGER.debug('Coordinator %s done', coord.name)
+
             await coord.async_config_entry_first_refresh()
             remove_listener = coord.async_add_listener(coordinator_handler)
             self._remove_listeners.append(remove_listener)

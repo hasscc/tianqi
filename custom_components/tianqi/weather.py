@@ -140,6 +140,12 @@ class WeatherEntity(BaseEntity):
             except (TypeError, ValueError):
                 continue
             try:
+                precipitation = self.client.data.get('dataSK', {}).get('rain')
+                if precipitation and tim.date() == dt.now().date():
+                    row['native_precipitation'] = float(precipitation)
+            except (TypeError, ValueError):
+                pass
+            try:
                 row['humidity'] = float(daily.get('fn'))
             except (TypeError, ValueError):
                 pass
