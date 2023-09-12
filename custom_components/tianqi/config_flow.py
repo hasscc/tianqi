@@ -27,6 +27,7 @@ class TianqiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         search = user_input.get(CONF_SEARCH)
         domain = user_input.get(CONF_DOMAIN)
+        area_id = user_input.get('area_id', '')
         client = TianqiClient(self.hass, {CONF_DOMAIN: domain})
 
         if search == '':
@@ -38,13 +39,15 @@ class TianqiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     'auto': '自动获取',
                     **areas,
                 }
+                if area_id not in areas:
+                    area_id = ''
                 schema.update({
-                    vol.Optional('area_id', default=user_input.get('area_id', '')): vol.In(areas),
+                    vol.Optional('area_id', default=area_id): vol.In(areas),
                 })
             else:
                 self.context['last_error'] = f'未找到与【{search}】相关的地点'
 
-        elif area_id := user_input.get('area_id'):
+        elif area_id:
             await self.async_set_unique_id(area_id)
             self._abort_if_unique_id_configured()
             try:
