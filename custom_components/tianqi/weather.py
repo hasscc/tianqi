@@ -200,8 +200,12 @@ class WeatherEntity(BaseEntity):
                 'skycon': ConditionCodes[code].value[1],
                 'native_precipitation': ConditionCodes[code].value[2],
             }
+            ymd = daily.get('jf', '')
+            observe = self.client.data.get('observe', {}).get(ymd) or {}
+            if observe:
+                row['native_precipitation'] = observe.get('rain')
             try:
-                day = datetime.strptime(daily.get('jf', ''), '%Y%m%d%H%M')
+                day = datetime.strptime(ymd, '%Y%m%d%H%M')
                 tim = dt.now().replace(
                     month=day.month, day=day.day, hour=day.hour,
                     minute=0, second=0, microsecond=0,
@@ -234,13 +238,13 @@ class WeatherEntity(BaseEntity):
                     'datetime': tim,
                     'value': row.get('native_temperature'),
                 })
+                self._attr_extra_state_attributes['hourly_precipitation'].append({
+                    'datetime': tim,
+                    'value': row.get('native_precipitation'),
+                })
                 self._attr_extra_state_attributes['hourly_skycon'].append({
                     'datetime': tim,
                     'value': ConditionCodes[code].value[1],
-                })
-                self._attr_extra_state_attributes['hourly_precipitation'].append({
-                    'datetime': tim,
-                    'value': ConditionCodes[code].value[2],
                 })
                 self._attr_extra_state_attributes['hourly_cloudrate'].append({
                     'datetime': tim,

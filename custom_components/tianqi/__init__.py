@@ -8,7 +8,7 @@ import base64
 import voluptuous as vol
 
 from typing import Optional
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.const import *
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -79,6 +79,14 @@ async def async_setup(hass: HomeAssistant, hass_config):
         return await client.update_minutely(**call.data)
     hass.services.async_register(
         DOMAIN, 'update_minutely', update_minutely,
+        schema=vol.Schema({}, extra=vol.ALLOW_EXTRA),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    async def update_observe(call: ServiceCall):
+        return await client.update_observe(**call.data)
+    hass.services.async_register(
+        DOMAIN, 'update_observe', update_observe,
         schema=vol.Schema({}, extra=vol.ALLOW_EXTRA),
         supports_response=SupportsResponse.OPTIONAL,
     )
@@ -175,6 +183,12 @@ class TianqiClient:
                 name='dailies',
                 update_method=self.update_dailies,
                 update_interval=timedelta(minutes=60),
+            ),
+            DataUpdateCoordinator(
+                hass, _LOGGER,
+                name='observe',
+                update_method=self.update_observe,
+                update_interval=timedelta(minutes=30),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
@@ -294,7 +308,7 @@ class TianqiClient:
         base = f'https://{node}.{self.domain}/'
         api = api.lstrip('/')
         tim = int(time.time() * 1000)
-        return f'{base}{api}?_={tim}'
+        return f'{base}{api}?_={tim}'.replace('https://www', 'http://www')
 
     async def update_entities(self):
         for entity in self.entities.values():
@@ -390,6 +404,40 @@ class TianqiClient:
         self.data['minutely'] = json.loads(txt) or {}
 
         return self.data
+
+    async def update_observe(self, **kwargs):
+        api = self.api_url('weather/%s.shtml' % kwargs.get('area_id', self.area_id), 'www')
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
+
+        fmt = '%Y%m%d%H%M'
+        dat = {}
+        if match := re.search(r'observe24h_data\s*=\s*({.*?})\s*;', txt, re.DOTALL):
+            rdt = (json.loads(match.group(1)) or {}).get('od') or {}
+            lst = rdt.get('od2') or []
+            lst.reverse()
+            stm = datetime.strptime(rdt.get('od0', ''), fmt)
+            for v in lst:
+                tim = stm.replace(hour=int(v.get('od21', 0)))
+                if tim < stm:
+                    tim = tim + timedelta(days=1)
+                stm = tim
+                try:
+                    dat[tim.strftime(fmt)] = {
+                        **v,
+                        'aqi': v.get('od28'),
+                        'temp': float(v.get('od22')),
+                        'humi': float(v.get('od27')),
+                        'rain': float(v.get('od26') or 0),
+                        'wind': v.get('od24'),
+                        'wind_level': float(v.get('od25') or 0),
+                        'wind_angel': float(v.get('od23') or 0),
+                    }
+                except (TypeError, ValueError):
+                    pass
+        if dat:
+            self.data['observe'] = dat
+        return dat
 
 class StationInfo:
     def __init__(self, data: dict):
