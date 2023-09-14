@@ -136,8 +136,8 @@ class WeatherEntity(BaseEntity):
         Only implement this method if `WeatherEntityFeature.FORECAST_DAILY` is set
         """
         lst = []
-        for daily in self.client.data.get('dailies', []):
-            code = f'd{daily.get("fa")}'
+        for item in self.client.data.get('dailies', []):
+            code = f'd{item.get("fa")}'
             if code not in ConditionCodes.__members__:
                 continue
             row = {
@@ -146,7 +146,7 @@ class WeatherEntity(BaseEntity):
                 'native_precipitation': ConditionCodes[code].value[2],
             }
             try:
-                day = datetime.strptime(daily.get('fi', ''), '%m/%d')
+                day = datetime.strptime(item.get('fi', ''), '%m/%d')
                 tim = dt.now().replace(
                     month=day.month, day=day.day, hour=0,
                     minute=0, second=0, microsecond=0,
@@ -161,21 +161,18 @@ class WeatherEntity(BaseEntity):
             except (TypeError, ValueError):
                 pass
             try:
-                row['humidity'] = float(daily.get('fn'))
+                row['humidity'] = float(item.get('fn'))
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_temperature'] = float(daily.get('fc'))
+                row['native_temperature'] = float(item.get('fc'))
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_templow'] = float(daily.get('fd'))
+                row['native_templow'] = float(item.get('fd'))
             except (TypeError, ValueError):
                 pass
-            try:
-                row['wind_bearing'] = float(daily.get('fe'))
-            except (TypeError, ValueError):
-                pass
+            row['wind_bearing'] = item.get('fe')
             lst.append(row)
         return lst
 
@@ -189,10 +186,10 @@ class WeatherEntity(BaseEntity):
             self._attr_extra_state_attributes.setdefault('hourly_cloudrate', [])
             self._attr_extra_state_attributes.setdefault('hourly_precipitation', [])
         lst = []
-        for daily in self.client.data.get('hourlies', []):
+        for item in self.client.data.get('hourlies', []):
             if len(lst) > 48:
                 break
-            code = f'd{daily.get("ja")}'
+            code = f'd{item.get("ja")}'
             if code not in ConditionCodes.__members__:
                 continue
             row = {
@@ -200,7 +197,7 @@ class WeatherEntity(BaseEntity):
                 'skycon': ConditionCodes[code].value[1],
                 'native_precipitation': ConditionCodes[code].value[2],
             }
-            ymd = daily.get('jf', '')
+            ymd = item.get('jf', '')
             observe = self.client.data.get('observe', {}).get(ymd) or {}
             if observe:
                 row['native_precipitation'] = observe.get('rain')
@@ -216,21 +213,22 @@ class WeatherEntity(BaseEntity):
             if dt.now() - tim > timedelta(hours=1.5):
                 continue
             try:
-                row['humidity'] = float(daily.get('je'))
+                row['humidity'] = float(item.get('je'))
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_temperature'] = float(daily.get('jb'))
+                row['native_temperature'] = float(item.get('jb'))
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_pressure'] = float(daily.get('jj'))
+                row['native_pressure'] = float(item.get('jj'))
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_wind_speed'] = float(daily.get('jg'))
+                row['native_wind_speed'] = float(item.get('jg'))
             except (TypeError, ValueError):
                 pass
+            row['wind_bearing'] = observe.get('wind')
             lst.append(row)
 
             if self.support_caiyun:
