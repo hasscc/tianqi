@@ -40,6 +40,8 @@ wget -q -O - https://hacs.vip/get | HUB_DOMAIN=ghproxy.com/github.com DOMAIN=tia
 
 > [⚙️ 配置](https://my.home-assistant.io/redirect/config) > 设备与服务 > [🧩 集成](https://my.home-assistant.io/redirect/integrations) > [➕ 添加集成](https://my.home-assistant.io/redirect/config_flow_start?domain=tianqi) > 🔍 搜索 [`天气预报`](https://my.home-assistant.io/redirect/config_flow_start?domain=tianqi)
 
+服务器域：weather.com.cn
+地点：建议先输入一个城市后选择用家庭经纬度
 
 ## 截图
 <img width="800" alt="tianqi" src="https://github.com/hasscc/tianqi/assets/4549099/545e5c98-dce3-46b6-95c0-3e42d8a26a9a">
