@@ -14,6 +14,8 @@
 <a name="install"></a>
 ## 安装/更新
 
+> 以下几种方法任选其一！
+
 #### 方法1: [HACS (**点击这里安装**)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hasscc&repository=tianqi&category=integration)
 
 #### 方法2: 通过 Samba / SFTP 手动安装
@@ -44,3 +46,7 @@ wget -q -O - https://hacs.vip/get | HUB_DOMAIN=ghproxy.com/github.com DOMAIN=tia
 ## 截图
 <img width="800" alt="tianqi" src="https://github.com/hasscc/tianqi/assets/4549099/545e5c98-dce3-46b6-95c0-3e42d8a26a9a">
 
+## 相关链接
+
+- 使用教程: https://mp.weixin.qq.com/s/_4aFbsb40qPgII-kYB3phA
+- [安装彩云卡片(HACS)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fineemb&repository=lovelace-colorfulclouds-weather-card&category=lovelace)
