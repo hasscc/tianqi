@@ -1,4 +1,5 @@
 import logging
+import re
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -26,12 +27,16 @@ class TianqiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = {}
         errors = {}
         search = user_input.get(CONF_SEARCH)
-        domain = user_input.get(CONF_DOMAIN)
+        domain = user_input.get(CONF_DOMAIN) or ''
         area_id = user_input.get('area_id', '')
+        domain = re.sub(r'^\s*https?://|/+\s*$', '', domain, flags=re.IGNORECASE)
         client = TianqiClient(self.hass, {CONF_DOMAIN: domain})
 
-        if search == '':
-            user_input.setdefault('area_id', 'auto')
+        if domain:
+            user_input[CONF_DOMAIN] = domain
+            if not area_id:
+                area_id = 'auto'
+                user_input.setdefault('area_id', area_id)
 
         if search:
             if areas := await client.search_areas(search):
