@@ -29,5 +29,15 @@
       }
     },
     "error": {}
+  },
+  "entity": {
+    "sensor": {
+      "precipitation_24h": {
+        "name": "降水量24h"
+      },
+      "visibility": {
+        "name": "能见度"
+      }
+    }
   }
 }

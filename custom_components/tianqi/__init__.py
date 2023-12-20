@@ -7,21 +7,23 @@ import re
 import base64
 import voluptuous as vol
 
-from typing import Optional
 from datetime import datetime, timedelta
 
 from homeassistant.const import *
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
+from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client
 from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from .converters.base import *
+
 
 DOMAIN = 'tianqi'
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORTED_PLATFORMS = [Platform.WEATHER]
+SUPPORTED_PLATFORMS = [Platform.WEATHER, Platform.SENSOR]
 HTTP_REFERER = base64.b64decode('aHR0cHM6Ly9tLndlYXRoZXIuY29tLmNuLw==').decode()
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_1) AppleWebKit/537 (KHTML, like Gecko) Chrome/116.0 Safari/537'
 
@@ -32,7 +34,6 @@ async def async_setup(hass: HomeAssistant, hass_config):
         return True
 
     client = await TianqiClient.from_config(hass, config)
-    await client.init()
     hass.data[DOMAIN]['latest_domain'] = domain
 
     async def get_station(call: ServiceCall):
@@ -98,6 +99,7 @@ async def async_setup(hass: HomeAssistant, hass_config):
                 for domain in SUPPORTED_PLATFORMS
             ]
         )
+        await client.init()
 
     return True
 
@@ -120,6 +122,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entry.async_on_unload(
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, client.unload)
         )
+
+    await client.init()
     return ret
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
@@ -142,10 +146,15 @@ async def async_add_setuper(hass: HomeAssistant, config, domain, setuper):
         return
     if domain not in client.setups:
         client.setups[domain] = setuper
-        setuper(client)
+        if domain == Platform.WEATHER:
+            setuper(client)
+        else:
+            await client.setup_entities(domain)
 
 
 class TianqiClient:
+    log = _LOGGER
+
     def __init__(self, hass: HomeAssistant, config=None):
         self.hass = hass
         self.config = config or {}
@@ -205,6 +214,46 @@ class TianqiClient:
         ]
         self._remove_listeners = []
 
+        self.converters = {}
+        self.add_converters(
+            NumberSensorConv('precipitation', prop='rain').with_option({
+                'device_class': 'precipitation',
+                'state_class': 'measurement',
+                'unit_of_measurement': UnitOfLength.MILLIMETERS,
+            }),
+            NumberSensorConv('precipitation_24h', prop='rain24h').with_option({
+                'device_class': 'precipitation',
+                'state_class': 'measurement',
+                'unit_of_measurement': UnitOfLength.MILLIMETERS,
+            }),
+            NumberSensorConv('temperature', prop='temp').with_option({
+                'device_class': 'temperature',
+                'state_class': 'measurement',
+                'unit_of_measurement': UnitOfTemperature.CELSIUS,
+            }),
+            NumberSensorConv('humidity', prop='sd', unit='%').with_option({
+                'device_class': 'humidity',
+                'state_class': 'measurement',
+                'unit_of_measurement': PERCENTAGE,
+            }),
+            NumberSensorConv('pm25', prop='aqi_pm25').with_option({
+                'device_class': 'pm25',
+                'state_class': 'measurement',
+                'unit_of_measurement': CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+            }),
+            NumberSensorConv('atmospheric_pressure', prop='qy').with_option({
+                'device_class': 'atmospheric_pressure',
+                'state_class': 'measurement',
+                'unit_of_measurement': UnitOfPressure.HPA,
+            }),
+            NumberSensorConv('visibility', prop='njd', unit='km').with_option({
+                'device_class': 'distance',
+                'state_class': 'measurement',
+                'unit_of_measurement': UnitOfLength.KILOMETERS,
+            }),
+            WindSpeedSensorConv(),
+        )
+
     @staticmethod
     async def from_config(hass, entry):
         hass.data.setdefault(DOMAIN, {})
@@ -238,14 +287,87 @@ class TianqiClient:
             def coordinator_handler():
                 _LOGGER.debug('Coordinator %s done', coord.name)
 
-            await coord.async_config_entry_first_refresh()
             remove_listener = coord.async_add_listener(coordinator_handler)
             self._remove_listeners.append(remove_listener)
+            await coord.async_config_entry_first_refresh()
+
+    def add_converter(self, conv: Converter):
+        self.converters[conv.attr] = conv
+        _LOGGER.error('add_converter: %s', conv)
+
+    def add_converters(self, *args: Converter):
+        for conv in args:
+            self.add_converter(conv)
+
+    def subscribe_attrs(self, conv: Converter):
+        attrs = {conv.attr}
+        if conv.childs:
+            attrs |= set(conv.childs)
+        attrs.update(c.attr for c in self.converters.values() if c.parent == conv.attr)
+        return attrs
+
+    def decode(self, data: dict) -> dict:
+        """Decode props for HASS."""
+        payload = {}
+        for conv in self.converters.values():
+            prop = conv.prop or conv.attr
+            if conv.ignore_prop:
+                value = data
+            elif prop in data:
+                value = data[prop]
+            else:
+                continue
+            conv.decode(self, payload, value)
+            _LOGGER.error('decode: %s', [payload, conv])
+        return payload
+
+    def push_state(self, value: dict):
+        """Push new state to Hass entities."""
+        if not value:
+            return
+        attrs = value.keys()
+
+        for entity in self.entities.values():
+            if not hasattr(entity, 'subscribed_attrs'):
+                continue
+            if not (entity.subscribed_attrs & attrs):
+                continue
+            entity.async_set_state(value)
+            if entity.added:
+                entity.async_write_ha_state()
+
+    async def setup_entities(self, only_domain=None):
+        if not self.converters:
+            _LOGGER.warning('Has none converters: %s', [type(self), self.config])
+        for conv in self.converters.values():
+            domain = conv.domain
+            if only_domain and only_domain != domain:
+                continue
+            if domain is None:
+                continue
+            if conv.attr in self.entities:
+                continue
+            await self.setup_entity(self, conv)
+
+    async def setup_entity(self, client: "TianqiClient", conv: "Converter"):
+        handler = self.setups.get(conv.domain)
+        if handler:
+            handler(client, conv)
+        else:
+            _LOGGER.warning('Setup %s not ready for %s', conv.domain, [client, conv])
 
     async def unload(self, *args):
         for rmh in self._remove_listeners:
             rmh()
         self._remove_listeners = []
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.area_id)},
+            name=f'{self.station_name}天气',
+            model=f'{self.station_code}({self.area_id})',
+        )
 
     @property
     def domain(self):
@@ -254,6 +376,14 @@ class TianqiClient:
     @property
     def area_id(self):
         return self.station.area_id
+
+    @property
+    def station_code(self):
+        return self.station.area_code or self.station.area_name or self.hass.config.location_name
+
+    @property
+    def station_name(self):
+        return self.station.area_name or self.station_code
 
     async def get_station(self, area_id=None, lat=None, lng=None):
         api = self.api_url('geong/v1/api', node='d7')
@@ -312,6 +442,8 @@ class TianqiClient:
 
     async def update_entities(self):
         for entity in self.entities.values():
+            if not hasattr(entity, 'update_from_client'):
+                continue
             await entity.update_from_client()
 
     async def update_summary_and_entities(self, **kwargs):
@@ -332,6 +464,7 @@ class TianqiClient:
 
         if match := re.search(r'dataSK\s*=\s*({.*?})\s*;', txt, re.DOTALL):
             self.data['dataSK'] = json.loads(match.group(1)) or {}
+            self.push_state(self.decode(self.data['dataSK']))
 
         if match := re.search(r'dataZS\s*=\s*({.*?})\s*;', txt, re.DOTALL):
             self.data['dataZS'] = (json.loads(match.group(1)) or {}).get('zs') or {}
@@ -437,7 +570,63 @@ class TianqiClient:
                     pass
         if dat:
             self.data['observe'] = dat
+            self.push_state(self.decode(dat))
         return dat
+
+
+class XEntity(Entity):
+    log = _LOGGER
+    added = False
+    _attr_should_poll = False
+    _attr_has_entity_name = True
+
+    def __init__(self, client: TianqiClient, conv: Converter, option=None):
+        self.client = client
+        self.hass = client.hass
+        self._name = conv.attr
+        self._option = option or {}
+        if hasattr(conv, 'option'):
+            self._option.update(conv.option or {})
+        self._attr_unique_id = f'{client.area_id}-{conv.attr}'
+        self.entity_id = f'{conv.domain}.{client.station_code}_{conv.attr}'
+        self._attr_icon = self._option.get('icon')
+        self._attr_entity_picture = self._option.get('picture')
+        self._attr_device_class = self._option.get('class')
+        self._attr_entity_category = self._option.get('category')
+        self._attr_translation_key = self._option.get('translation_key', conv.attr)
+        self._attr_device_info = client.device_info
+        self._attr_extra_state_attributes = {}
+        self._vars = {}
+        self.subscribed_attrs = client.subscribe_attrs(conv)
+        client.entities[conv.attr] = self
+
+    async def async_added_to_hass(self):
+        """Run when entity about to be added to hass."""
+        if hasattr(self, 'async_get_last_state'):
+            state: State = await self.async_get_last_state()
+            if state:
+                self.async_restore_last_state(state.state, state.attributes)
+                return
+
+        self.added = True
+        await super().async_added_to_hass()
+
+    @callback
+    def async_restore_last_state(self, state: str, attrs: dict):
+        """Restore previous state."""
+        self._attr_state = state
+
+    @callback
+    def async_set_state(self, data: dict):
+        """Handle state update from gateway."""
+        if self._name in data:
+            self._attr_state = data[self._name]
+        for k in self.subscribed_attrs:
+            if k not in data:
+                continue
+            self._attr_extra_state_attributes[k] = data[k]
+        _LOGGER.error('%s: State changed: %s', self.entity_id, data)
+
 
 class StationInfo:
     def __init__(self, data: dict):

@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import logging
-import enum
-
 from datetime import datetime
 
 from homeassistant.components.weather import *
@@ -13,13 +10,16 @@ from homeassistant.components.weather import (
 from homeassistant.util import dt
 from homeassistant.const import *
 
+import logging
+import enum
+
 try:
     # hass 2023.9
     from homeassistant.components.weather import WeatherEntityFeature
 except (ModuleNotFoundError, ImportError):
     WeatherEntityFeature = None
 
-from . import TianqiClient, async_add_setuper, HTTP_REFERER
+from . import DOMAIN, TianqiClient, async_add_setuper, HTTP_REFERER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,13 +49,12 @@ class WeatherEntity(BaseEntity):
         self.client = client
         self.hass = client.hass
 
-        station = client.station
-        code = station.area_code or station.area_name or self.hass.config.location_name
-        self.entity_id = f'{ENTITY_DOMAIN}.{code}'
-        self._attr_name = station.area_name or code
+        self.entity_id = f'{ENTITY_DOMAIN}.{client.station_code}'
+        self._attr_name = client.station_name
         self._attr_unique_id = f'{client.entry_id}-{ENTITY_DOMAIN}'
         self._attr_attribution = None
         self._attr_supported_features = 0
+        self._attr_device_info = client.device_info
         if WeatherEntityFeature:
             self._attr_supported_features |= WeatherEntityFeature.FORECAST_DAILY
             self._attr_supported_features |= WeatherEntityFeature.FORECAST_HOURLY
