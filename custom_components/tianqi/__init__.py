@@ -293,7 +293,6 @@ class TianqiClient:
 
     def add_converter(self, conv: Converter):
         self.converters[conv.attr] = conv
-        _LOGGER.error('add_converter: %s', conv)
 
     def add_converters(self, *args: Converter):
         for conv in args:
@@ -318,7 +317,6 @@ class TianqiClient:
             else:
                 continue
             conv.decode(self, payload, value)
-            _LOGGER.error('decode: %s', [payload, conv])
         return payload
 
     def push_state(self, value: dict):
@@ -570,7 +568,6 @@ class TianqiClient:
                     pass
         if dat:
             self.data['observe'] = dat
-            self.push_state(self.decode(dat))
         return dat
 
 
@@ -625,7 +622,7 @@ class XEntity(Entity):
             if k not in data:
                 continue
             self._attr_extra_state_attributes[k] = data[k]
-        _LOGGER.error('%s: State changed: %s', self.entity_id, data)
+        _LOGGER.info('%s: State changed: %s', self.entity_id, data)
 
 
 class StationInfo:
