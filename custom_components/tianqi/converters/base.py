@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any, Optional, TYPE_CHECKING
-
-from homeassistant.util import dt
 
 if TYPE_CHECKING:
     from .. import TianqiClient as Client
