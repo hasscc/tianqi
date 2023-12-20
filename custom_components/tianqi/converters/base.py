@@ -45,8 +45,12 @@ class NumberSensorConv(SensorConv):
     precision: Optional[int] = 1
 
     def decode(self, client: "Client", payload: dict, value: Any):
-        val = float(f'{value}'.strip().replace(self.unit, ''))
-        payload[self.attr] = round(val, self.precision)
+        try:
+            val = float(f'{value}'.strip().replace(self.unit, ''))
+            val = round(val, self.precision)
+        except (TypeError, ValueError):
+            val = None
+        payload[self.attr] = val
 
 
 @dataclass
