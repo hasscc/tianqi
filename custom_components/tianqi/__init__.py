@@ -3,7 +3,6 @@ import aiohttp
 import asyncio
 import time
 import json
-import re
 import base64
 import voluptuous as vol
 
@@ -23,7 +22,11 @@ from .converters.base import *
 DOMAIN = 'tianqi'
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORTED_PLATFORMS = [Platform.WEATHER, Platform.SENSOR]
+SUPPORTED_PLATFORMS = [
+    Platform.WEATHER,
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+]
 HTTP_REFERER = base64.b64decode('aHR0cHM6Ly9tLndlYXRoZXIuY29tLmNuLw==').decode()
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_1) AppleWebKit/537 (KHTML, like Gecko) Chrome/116.0 Safari/537'
 
@@ -252,6 +255,7 @@ class TianqiClient:
                 'unit_of_measurement': UnitOfLength.KILOMETERS,
             }),
             WindSpeedSensorConv(),
+            AlarmsBinarySensorConv(),
         )
 
     @staticmethod
@@ -365,6 +369,7 @@ class TianqiClient:
             identifiers={(DOMAIN, self.area_id)},
             name=f'{self.station_name}天气',
             model=f'{self.station_code}({self.area_id})',
+            configuration_url=self.web_url('mweather/%s.shtml' % self.area_id),
         )
 
     @property
@@ -430,13 +435,19 @@ class TianqiClient:
             lst[area_id] = f'{arr[9]}-{arr[2]}'
         return lst
 
-    def api_url(self, api, node='d1'):
+    def api_url(self, api, node='d1', with_time=True):
         if not self.domain:
             raise IntegrationError('Domain cannot be empty')
         base = f'https://{node}.{self.domain}/'
         api = api.lstrip('/')
-        tim = int(time.time() * 1000)
-        return f'{base}{api}?_={tim}'.replace('https://www', 'http://www')
+        if with_time:
+            tim = int(time.time() * 1000)
+            sep = '&' if '?' in api else '?'
+            api = f'{api}{sep}_={tim}'
+        return f'{base}{api}'.replace('https://www', 'http://www')
+
+    def web_url(self, path, node='m'):
+        return self.api_url(path, node, with_time=False)
 
     async def update_entities(self):
         for entity in self.entities.values():
@@ -482,6 +493,7 @@ class TianqiClient:
 
         if match := re.search(r'var alarmDZ\w*\s*=\s*({.*})', txt, re.DOTALL):
             self.data['alarms'] = (json.loads(match.group(1)) or {}).get('w') or []
+            self.push_state(self.decode(self.data))
 
         return self.data
 

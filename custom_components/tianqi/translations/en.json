@@ -38,6 +38,11 @@
       "visibility": {
         "name": "能见度"
       }
+    },
+    "binary_sensor": {
+      "warning": {
+        "name": "预警"
+      }
     }
   }
 }

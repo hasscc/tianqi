@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Optional, TYPE_CHECKING
+import re
 
 if TYPE_CHECKING:
     from .. import TianqiClient as Client
@@ -79,3 +80,37 @@ class WindSpeedSensorConv(NumberSensorConv):
             'wind_level': dataSK.get('WS'),
             'wind_speed_and_unit': dataSK.get('wse'),
         })
+
+
+@dataclass
+class AlarmsBinarySensorConv(Converter):
+    attr: str = 'warning'
+    prop: Optional[str] = 'alarms'
+    domain: Optional[str] = 'binary_sensor'
+    option = {
+        'device_class': 'problem',
+    }
+    childs = {
+        'title',
+        'alarms',
+    }
+
+    def decode(self, client: "Client", payload: dict, value: Any):
+        super().decode(client, payload, value)
+        titles = []
+        alarms = []
+        for v in client.data.get(self.prop) or []:
+            title = v.get('w13', '')
+            titles.append(re.sub(r'.+发布的?(.+预警)', r'\1', title))
+            alarms.append({
+                'title': title,
+                'description': v.get('w9', ''),
+                'province': v.get('w1'),
+                'city': v.get('w2'),
+                'code': f'{v.get("w4")}{v.get("w6")}',
+                'alertld': v.get('w16'),
+                'link': client.web_url('warning/publish_area.shtml?code=%s' % client.area_id),
+            })
+        payload['warning'] = len(alarms) > 0
+        payload['title'] = ', '.join(titles)
+        payload['alarms'] = alarms
