@@ -33,7 +33,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class SensorEntity(XEntity, BaseEntity):
     def __init__(self, client: TianqiClient, conv: Converter):
         super().__init__(client, conv)
-        self._attr_device_class = self._option.get('device_class')
         self._attr_state_class = self._option.get('state_class')
         self._attr_native_unit_of_measurement = self._option.get('unit_of_measurement')
 

@@ -32,10 +32,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 
 class BinarySensorEntity(XEntity, BaseEntity):
-    def __init__(self, client: TianqiClient, conv: Converter):
-        super().__init__(client, conv)
-        self._attr_device_class = self._option.get('device_class')
-
     @callback
     def async_set_state(self, data: dict):
         super().async_set_state(data)

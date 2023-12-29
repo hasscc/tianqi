@@ -595,6 +595,7 @@ class XEntity(Entity):
     def __init__(self, client: TianqiClient, conv: Converter, option=None):
         self.client = client
         self.hass = client.hass
+        self.conv = conv
         self._name = conv.attr
         self._option = option or {}
         if hasattr(conv, 'option'):
@@ -602,9 +603,9 @@ class XEntity(Entity):
         self._attr_unique_id = f'{client.area_id}-{conv.attr}'
         self.entity_id = f'{conv.domain}.{client.station_code}_{conv.attr}'
         self._attr_icon = self._option.get('icon')
-        self._attr_entity_picture = self._option.get('picture')
-        self._attr_device_class = self._option.get('class')
-        self._attr_entity_category = self._option.get('category')
+        self._attr_device_class = self._option.get('device_class')
+        self._attr_entity_picture = self._option.get('entity_picture')
+        self._attr_entity_category = self._option.get('entity_category')
         self._attr_translation_key = self._option.get('translation_key', conv.attr)
         self._attr_device_info = client.device_info
         self._attr_entity_registry_enabled_default = conv.enabled is not False
@@ -632,8 +633,11 @@ class XEntity(Entity):
     @callback
     def async_set_state(self, data: dict):
         """Handle state update from gateway."""
+        if hasattr(self.conv, 'option'):
+            self._option.update(self.conv.option or {})
         if self._name in data:
             self._attr_state = data[self._name]
+            self._attr_entity_picture = self._option.get('entity_picture')
         for k in self.subscribed_attrs:
             if k not in data:
                 continue
