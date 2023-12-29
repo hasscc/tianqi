@@ -256,6 +256,9 @@ class TianqiClient:
             }),
             WindSpeedSensorConv(),
             AlarmsBinarySensorConv(),
+            SensorConv('limit_number', prop='limitnumber', enabled=False).with_option({
+                'icon': 'mdi:counter',
+            }),
         )
 
     @staticmethod
@@ -604,6 +607,7 @@ class XEntity(Entity):
         self._attr_entity_category = self._option.get('category')
         self._attr_translation_key = self._option.get('translation_key', conv.attr)
         self._attr_device_info = client.device_info
+        self._attr_entity_registry_enabled_default = conv.enabled is not False
         self._attr_extra_state_attributes = {}
         self._vars = {}
         self.subscribed_attrs = client.subscribe_attrs(conv)

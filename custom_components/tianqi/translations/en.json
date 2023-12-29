@@ -37,6 +37,9 @@
       },
       "visibility": {
         "name": "能见度"
+      },
+      "limit_number": {
+        "name": "限行"
       }
     },
     "binary_sensor": {
