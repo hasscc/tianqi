@@ -23,7 +23,7 @@
 
 #### 方法3: 通过`SSH`或`Terminal & SSH`加载项执行一键安装命令
 ```shell
-wget -O - https://hacs.vip/get | DOMAIN=tianqi REPO_PATH=hasscc/tianqi ARCHIVE_TAG=main bash -
+wget -O - https://hacs.vip/get | DOMAIN=tianqi bash -
 ```
 
 #### 方法4: `shell_command`服务
@@ -31,10 +31,11 @@ wget -O - https://hacs.vip/get | DOMAIN=tianqi REPO_PATH=hasscc/tianqi ARCHIVE_T
     ```yaml
     shell_command:
       update_tianqi: |-
-        wget -O - https://hacs.vip/get | DOMAIN=tianqi REPO_PATH=hasscc/tianqi ARCHIVE_TAG=main bash -
+        wget -O - https://hacs.vip/get | DOMAIN=tianqi bash -
     ```
-2. 重启HA
+2. 重启HA使配置生效
 3. 在开发者工具中执行服务 [`service: shell_command.update_tianqi`](https://my.home-assistant.io/redirect/developer_call_service/?service=shell_command.update_tianqi)
+4. 再次重启HA使插件生效
 
 
 <a name="config"></a>

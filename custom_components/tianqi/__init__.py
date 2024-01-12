@@ -8,7 +8,16 @@ import voluptuous as vol
 
 from datetime import datetime, timedelta
 
-from homeassistant.const import *
+from homeassistant.const import (
+    Platform,
+    CONF_DOMAIN,
+    EVENT_HOMEASSISTANT_STOP,
+    PERCENTAGE,
+    UnitOfLength,
+    UnitOfPressure,
+    UnitOfTemperature,
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+)
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.config_entries import ConfigEntry
