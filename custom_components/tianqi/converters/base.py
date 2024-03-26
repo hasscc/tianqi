@@ -114,7 +114,7 @@ class AlarmsBinarySensorConv(Converter):
                 'link': client.web_url('warning/publish_area.shtml?code=%s' % client.area_id),
             })
         payload['warning'] = len(alarms) > 0
-        payload['title'] = ', '.join(titles)
+        payload['title'] = ', '.join(set(titles))
         payload['alarms'] = alarms
         src = client.web_url('m2/i/about/alarmpic/%s.gif' % code, 'www') if code else None
         self.option['entity_picture'] = f'https://cfrp.hacs.vip/{src}' if src else None
