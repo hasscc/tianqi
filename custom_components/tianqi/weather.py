@@ -141,9 +141,11 @@ class WeatherEntity(BaseEntity):
         if indexes:
             self._attr_extra_state_attributes['indexes'] = indexes
 
-        if not WeatherEntityFeature or 1:
+        if hasattr(self, '_attr_forecast'):
             self._attr_forecast = await self.async_forecast_daily()
-        await self.async_forecast_hourly()
+            await self.async_forecast_hourly()
+        elif self.support_caiyun:
+            self._attr_extra_state_attributes['forecast'] = await self.async_forecast_daily()
 
         self.async_write_ha_state()
 
@@ -152,6 +154,8 @@ class WeatherEntity(BaseEntity):
         Only implement this method if `WeatherEntityFeature.FORECAST_DAILY` is set
         """
         lst = []
+        if 'dailies' not in self.client.data:
+            await self.client.update_dailies()
         for item in self.client.data.get('dailies', []):
             code = f'd{item.get("fa")}'
             if code not in ConditionCodes.__members__:
@@ -202,6 +206,8 @@ class WeatherEntity(BaseEntity):
             self._attr_extra_state_attributes.setdefault('hourly_cloudrate', [])
             self._attr_extra_state_attributes.setdefault('hourly_precipitation', [])
         lst = []
+        if 'hourlies' not in self.client.data:
+            await self.client.update_hourlies()
         for item in self.client.data.get('hourlies', []):
             if len(lst) > 48:
                 break
