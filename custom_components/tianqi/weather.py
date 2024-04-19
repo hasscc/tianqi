@@ -143,9 +143,12 @@ class WeatherEntity(BaseEntity):
 
         if hasattr(self, '_attr_forecast'):
             self._attr_forecast = await self.async_forecast_daily()
-            await self.async_forecast_hourly()
         elif self.support_caiyun:
-            self._attr_extra_state_attributes['forecast'] = await self.async_forecast_daily()
+            forecasts = await self.async_forecast_daily()
+            if hasattr(self, '_convert_forecast'):
+                forecasts = self._convert_forecast(forecasts)
+            self._attr_extra_state_attributes['forecast'] = forecasts
+        await self.async_forecast_hourly()
 
         self.async_write_ha_state()
 
