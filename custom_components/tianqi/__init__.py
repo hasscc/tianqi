@@ -571,7 +571,16 @@ class TianqiClient:
             rdt = (json.loads(match.group(1)) or {}).get('od') or {}
             lst = rdt.get('od2') or []
             lst.reverse()
-            stm = datetime.strptime(rdt.get('od0', ''), fmt)
+            try:
+                stm = datetime.strptime(rdt.get('od0', ''), fmt)
+            except ValueError as exc:
+                dat = {
+                    'error': str(exc),
+                    'api': api,
+                    'data': rdt,
+                }
+                self.log.warning('Update observe failed: %s', dat)
+                return dat
             for v in lst:
                 tim = stm.replace(hour=int(v.get('od21', 0)))
                 if tim < stm:
