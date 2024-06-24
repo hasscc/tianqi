@@ -413,7 +413,7 @@ class TianqiClient:
 
         res = await self.http.get(api, params={
             'params': json.dumps(pms, separators=(',', ':')),
-        }, allow_redirects=False)
+        }, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             _LOGGER.error('%s: %s', api, [pms, txt, res.headers])
@@ -432,7 +432,7 @@ class TianqiClient:
     async def search_areas(self, name):
         api = self.api_url('search', node='toy1')
         pms = {'cityname': name}
-        res = await self.http.get(api, params=pms, allow_redirects=False)
+        res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api} {pms}')
@@ -474,7 +474,7 @@ class TianqiClient:
 
     async def update_summary(self, **kwargs):
         api = self.api_url('weather_index/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False)
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
@@ -494,7 +494,7 @@ class TianqiClient:
 
     async def update_alarms(self, **kwargs):
         api = self.api_url('dingzhi/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False)
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
@@ -511,7 +511,7 @@ class TianqiClient:
 
     async def update_dailies(self, **kwargs):
         api = self.api_url('weixinfc/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False)
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
@@ -527,7 +527,7 @@ class TianqiClient:
 
     async def update_hourlies(self, **kwargs):
         api = self.api_url('wap_180h/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False)
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
@@ -547,7 +547,7 @@ class TianqiClient:
             'lat': self.station.latitude,
             'lon': self.station.longitude,
         }
-        res = await self.http.get(api, params=pms, allow_redirects=False)
+        res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
         txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api} {pms}')
