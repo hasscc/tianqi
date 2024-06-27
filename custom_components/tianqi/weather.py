@@ -141,21 +141,22 @@ class WeatherEntity(BaseEntity):
         if indexes:
             self._attr_extra_state_attributes['indexes'] = indexes
 
+        forecasts = await self.async_forecast_daily()
         if hasattr(self, '_attr_forecast'):
-            self._attr_forecast = await self.async_forecast_daily()
+            self._attr_forecast = forecasts
         elif self.support_caiyun:
-            forecasts = await self.async_forecast_daily()
             if hasattr(self, '_convert_forecast'):
                 forecasts = self._convert_forecast(forecasts)
             self._attr_extra_state_attributes['forecast'] = forecasts
-        await self.async_forecast_hourly()
 
+        await self.async_forecast_hourly()
         self.async_write_ha_state()
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         """Return the daily forecast in native units.
         Only implement this method if `WeatherEntityFeature.FORECAST_DAILY` is set
         """
+        now = dt.now()
         lst = []
         if 'dailies' not in self.client.data:
             await self.client.update_dailies()
@@ -168,9 +169,11 @@ class WeatherEntity(BaseEntity):
                 'skycon': ConditionCodes[code].value[1],
                 'native_precipitation': ConditionCodes[code].value[2],
             }
+            dfi = item.get('fi', '')
+            today = dfi == now.strftime('%m/%d').replace('/0', '/').lstrip('0')
             try:
-                day = datetime.strptime(item.get('fi', ''), '%m/%d')
-                tim = dt.now().replace(
+                day = datetime.strptime(dfi, '%m/%d')
+                tim = now.replace(
                     month=day.month, day=day.day, hour=0,
                     minute=0, second=0, microsecond=0,
                 )
@@ -188,11 +191,15 @@ class WeatherEntity(BaseEntity):
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_temperature'] = float(item.get('fc'))
+                row['native_temperature'] = val = float(item.get('fc'))
+                if today:
+                    self._attr_extra_state_attributes['temphigh'] = val
             except (TypeError, ValueError):
                 pass
             try:
-                row['native_templow'] = float(item.get('fd'))
+                row['native_templow'] = val = float(item.get('fd'))
+                if today:
+                    self._attr_extra_state_attributes['templow'] = val
             except (TypeError, ValueError):
                 pass
             row['wind_bearing'] = item.get('fe')
