@@ -81,6 +81,25 @@ class WindSpeedSensorConv(NumberSensorConv):
             'wind_speed_and_unit': dataSK.get('wse'),
         })
 
+@dataclass
+class ForecastMinutelySensorConv(SensorConv):
+    attr: str = 'forecast_minutely'
+    prop: Optional[str] = 'msg'
+    option = {
+        'icon': 'mdi:tooltip',
+        'payload_attrs': True,
+    }
+
+    def decode(self, client: "Client", payload: dict, value: Any):
+        minutely = client.data.get('minutely') or {}
+        times = minutely.get('times', [])
+        values = minutely.get('values', [])
+        minutes = dict(zip(times, values)) if len(times) == len(values) else {}
+        payload.update({
+            'forecast_minutely': minutely.get('msg'),
+            **minutes,
+        })
+
 
 @dataclass
 class AlarmsBinarySensorConv(Converter):

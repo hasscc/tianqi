@@ -19,10 +19,11 @@ from homeassistant.const import (
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
-from homeassistant.helpers.entity import Entity, DeviceInfo
+from homeassistant.helpers.entity import Entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client
 from homeassistant.exceptions import IntegrationError
+from homeassistant.helpers.device_registry import DeviceInfo, DeviceEntryType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .converters.base import *
@@ -265,6 +266,7 @@ class TianqiClient:
             }),
             WindSpeedSensorConv(),
             AlarmsBinarySensorConv(),
+            ForecastMinutelySensorConv(),
             SensorConv('limit_number', prop='limitnumber', enabled=False).with_option({
                 'icon': 'mdi:counter',
             }),
@@ -382,6 +384,7 @@ class TianqiClient:
             name=f'{self.station_name}天气',
             model=f'{self.station_code}({self.area_id})',
             configuration_url=self.web_url('mweather/%s.shtml' % self.area_id),
+            entry_type=DeviceEntryType.SERVICE,
         )
 
     @property
@@ -557,6 +560,7 @@ class TianqiClient:
             self.data.pop('minutely_text', None)
 
         self.data['minutely'] = json.loads(txt) or {}
+        self.push_state(self.decode(self.data['minutely']))
 
         return self.data
 
@@ -656,10 +660,13 @@ class XEntity(Entity):
         if self._name in data:
             self._attr_state = data[self._name]
             self._attr_entity_picture = self._option.get('entity_picture')
-        for k in self.subscribed_attrs:
-            if k not in data:
-                continue
-            self._attr_extra_state_attributes[k] = data[k]
+        if self._option.get('payload_attrs'):
+            self._attr_extra_state_attributes.update(data)
+        else:
+            for k in self.subscribed_attrs:
+                if k not in data:
+                    continue
+                self._attr_extra_state_attributes[k] = data[k]
         _LOGGER.info('%s: State changed: %s', self.entity_id, data)
 
 

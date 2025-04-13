@@ -38,6 +38,9 @@
       "visibility": {
         "name": "能见度"
       },
+      "forecast_minutely": {
+        "name": "实时预报"
+      },
       "limit_number": {
         "name": "限行"
       }
