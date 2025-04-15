@@ -661,7 +661,7 @@ class XEntity(Entity):
             self._attr_state = data[self._name]
             self._attr_entity_picture = self._option.get('entity_picture')
         if self._option.get('payload_attrs'):
-            self._attr_extra_state_attributes.update(data)
+            self._attr_extra_state_attributes = data.copy()
         else:
             for k in self.subscribed_attrs:
                 if k not in data:
