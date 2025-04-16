@@ -2,29 +2,29 @@
   "config": {
     "step": {
       "user": {
-        "title": "Weather",
+        "title": "天气",
         "description": "{tip}",
         "data": {
-          "domain": "Domain",
-          "search": "Search Location",
-          "area_id": "Select Location",
-          "caiyun": "Compatible with Caiyun Card"
+          "domain": "服务器域",
+          "search": "搜索地点",
+          "area_id": "选择地点",
+          "caiyun": "兼容彩云卡片"
         }
       }
     },
     "error": {},
     "abort": {
-      "already_configured": "This area has already been configured"
+      "already_configured": "该区域已经配置过了"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Weather",
+        "title": "天气",
         "description": "{tip}",
         "data": {
-          "domain": "Domain",
-          "caiyun": "Compatible with Caiyun Card"
+          "domain": "服务器域",
+          "caiyun": "兼容彩云卡片"
         }
       }
     },
@@ -33,18 +33,18 @@
   "entity": {
     "sensor": {
       "precipitation_24h": {
-        "name": "Precipitation 24h"
+        "name": "降水量24h"
       },
       "visibility": {
-        "name": "Visibility"
+        "name": "能见度"
       },
       "limit_number": {
-        "name": "Traffic Limit"
+        "name": "限行"
       }
     },
     "binary_sensor": {
       "warning": {
-        "name": "Warnings"
+        "name": "预警"
       }
     }
   }
