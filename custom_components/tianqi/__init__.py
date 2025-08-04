@@ -38,7 +38,7 @@ SUPPORTED_PLATFORMS = [
     Platform.BINARY_SENSOR,
 ]
 HTTP_REFERER = base64.b64decode('aHR0cHM6Ly9tLndlYXRoZXIuY29tLmNuLw==').decode()
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_1) AppleWebKit/537 (KHTML, like Gecko) Chrome/116.0 Safari/537'
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
 
 
 async def async_setup(hass: HomeAssistant, hass_config):
@@ -459,7 +459,8 @@ class TianqiClient:
             tim = int(time.time() * 1000)
             sep = '&' if '?' in api else '?'
             api = f'{api}{sep}_={tim}'
-        return f'{base}{api}'.replace('https://www', 'http://www')
+        # return f'{base}{api}'.replace('https://www', 'http://www')
+        return f'{base}{api}'.replace('https://d3', 'http://d3')
 
     def web_url(self, path, node='m'):
         return self.api_url(path, node, with_time=False)
@@ -566,8 +567,22 @@ class TianqiClient:
 
     async def update_observe(self, **kwargs):
         api = self.api_url('weather/%s.shtml' % kwargs.get('area_id', self.area_id), 'www')
-        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        txt = ''
+        try:
+            res = await self.http.get(
+                api,
+                allow_redirects=False,
+                verify_ssl=False  
+            )
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器: {str(e)}")
+        except aiohttp.ClientResponseError as e:
+            raise IntegrationError(f"服务器返回错误: HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败: {type(e).__name__}: {str(e)}")
 
         fmt = '%Y%m%d%H%M'
         dat = {}
