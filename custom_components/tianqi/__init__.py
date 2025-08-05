@@ -478,8 +478,19 @@ class TianqiClient:
 
     async def update_summary(self, **kwargs):
         api = self.api_url('weather_index/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        txt = ''
+        try:
+            res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器(update_summary): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_summary): HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接(update_summary)")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败(update_summary): {type(e).__name__}: {str(e)}")
+    
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -498,8 +509,19 @@ class TianqiClient:
 
     async def update_alarms(self, **kwargs):
         api = self.api_url('dingzhi/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        txt = ''
+        try:
+            res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器(update_alarms): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_alarms): HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接(update_alarms)")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败(update_alarms): {type(e).__name__}: {str(e)}")
+        
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -515,8 +537,19 @@ class TianqiClient:
 
     async def update_dailies(self, **kwargs):
         api = self.api_url('weixinfc/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        txt = ''
+        try:
+            res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器(update_dailies): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_dailies): HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接(update_dailies)")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败(update_dailies): {type(e).__name__}: {str(e)}")
+        
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -531,8 +564,19 @@ class TianqiClient:
 
     async def update_hourlies(self, **kwargs):
         api = self.api_url('wap_180h/%s.html' % kwargs.get('area_id', self.area_id))
-        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        txt = ''
+        try:
+            res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器(update_hourlies): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_hourlies): HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接(update_hourlies)")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败(update_hourlies): {type(e).__name__}: {str(e)}")
+        
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -547,12 +591,23 @@ class TianqiClient:
 
     async def update_minutely(self, **kwargs):
         api = self.api_url('webgis_rain_new/webgis/minute', 'd3')
+        txt = ''
         pms = {
             'lat': self.station.latitude,
             'lon': self.station.longitude,
         }
-        res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
+        try:
+            res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
+            txt = await res.text()
+        except aiohttp.ClientConnectorError as e:
+            raise IntegrationError(f"无法连接到服务器(update_minutely): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_minutely): HTTP {e.status}")
+        except asyncio.TimeoutError:
+            raise IntegrationError("请求超时，请检查网络连接(update_minutely)")
+        except Exception as e:
+            raise IntegrationError(f"网络请求失败(update_minutely): {type(e).__name__}: {str(e)}")
+        
         if not txt:
             raise IntegrationError(f'Empty response from: {api} {pms}')
         if res.status != 200:
@@ -576,13 +631,13 @@ class TianqiClient:
             )
             txt = await res.text()
         except aiohttp.ClientConnectorError as e:
-            raise IntegrationError(f"无法连接到服务器: {str(e)}")
-        except aiohttp.ClientResponseError as e:
-            raise IntegrationError(f"服务器返回错误: HTTP {e.status}")
+            raise IntegrationError(f"无法连接到服务器(update_observe): {str(e)}")
+        # except aiohttp.ClientResponseError as e:
+        #     raise IntegrationError(f"服务器返回错误(update_observe): HTTP {e.status}")
         except asyncio.TimeoutError:
-            raise IntegrationError("请求超时，请检查网络连接")
+            raise IntegrationError("请求超时，请检查网络连接(update_observe)")
         except Exception as e:
-            raise IntegrationError(f"网络请求失败: {type(e).__name__}: {str(e)}")
+            raise IntegrationError(f"网络请求失败(update_observe): {type(e).__name__}: {str(e)}")
 
         fmt = '%Y%m%d%H%M'
         dat = {}
