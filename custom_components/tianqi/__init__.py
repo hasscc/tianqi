@@ -179,7 +179,11 @@ class TianqiClient:
 
         self.http = aiohttp_client.async_create_clientsession(
             hass,
-            timeout=aiohttp.ClientTimeout(total=20),
+            timeout=aiohttp.ClientTimeout(
+                    total=20,
+                    sock_connect=5,  # 连接超时
+                    sock_read=15     # 读取超时
+                ),
             auto_cleanup=False,
         )
         self.http._default_headers = {
