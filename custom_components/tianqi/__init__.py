@@ -7,6 +7,9 @@ import base64
 import voluptuous as vol
 
 from datetime import datetime, timedelta
+from functools import wraps
+from typing import Callable, Set, Type, Tuple
+from aiohttp import ClientError, ClientResponseError
 
 from homeassistant.const import (
     Platform,
@@ -165,6 +168,48 @@ async def async_add_setuper(hass: HomeAssistant, config, domain, setuper):
             await client.setup_entities(domain)
 
 
+def aiohttp_retry(
+    max_retries: int = 3,
+    backoff_factor: float = 2.0,
+    retry_on_status: Optional[Set[int]] = None,
+    exceptions: Tuple[Type[BaseException], ...] = (ClientError, asyncio.TimeoutError),
+):
+    """
+    aiohttp 请求自动重试装饰器。
+    :param max_retries: 最大重试次数（不包括第一次请求）
+    :param backoff_factor: 退避因子（秒）。用于计算重试前的等待时间。
+    :param retry_on_status: 一个包含需要重试的 HTTP 状态码的集合。如果为 None，则默认重试 5xx 错误
+    :param exceptions: 一个需要捕获并触发重试的异常元组
+    """
+    if retry_on_status is None:
+        retry_on_status = {500, 502, 503, 504}
+
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as exc:
+                    _LOGGER.warning("Error while fetching data from %s", func.__name__, exc_info=True)
+                    last_exception = exc
+                    if attempt == max_retries:
+                        break
+                    is_retryable_status = False
+                    if isinstance(exc, ClientResponseError):
+                        if exc.status in retry_on_status:
+                            is_retryable_status = True
+                    if not is_retryable_status:
+                        break
+                    delay = backoff_factor * (2 ** attempt)
+                    await asyncio.sleep(delay)
+            if last_exception:
+                raise last_exception
+        return wrapper
+    return decorator
+
+
 class TianqiClient:
     log = _LOGGER
 
@@ -180,10 +225,10 @@ class TianqiClient:
         self.http = aiohttp_client.async_create_clientsession(
             hass,
             timeout=aiohttp.ClientTimeout(
-                    total=20,
-                    sock_connect=15,  # 连接超时
-                    sock_read=15     # 读取超时
-                ),
+                total=30,
+                sock_connect=15,  # 连接超时
+                sock_read=15,     # 读取超时
+            ),
             auto_cleanup=False,
         )
         self.http._default_headers = {
@@ -463,8 +508,8 @@ class TianqiClient:
             tim = int(time.time() * 1000)
             sep = '&' if '?' in api else '?'
             api = f'{api}{sep}_={tim}'
-        # return f'{base}{api}'.replace('https://www', 'http://www')
-        return f'{base}{api}'.replace('https://d3', 'http://d3')
+        base = base.replace('https://d3', 'http://d3')
+        return f'{base}{api}'
 
     def web_url(self, path, node='m'):
         return self.api_url(path, node, with_time=False)
@@ -480,35 +525,11 @@ class TianqiClient:
         await self.update_entities()
         return self.data
 
+    @aiohttp_retry()
     async def update_summary(self, **kwargs):
         api = self.api_url('weather_index/%s.html' % kwargs.get('area_id', self.area_id))
-        txt = ''
-        max_retries = 3  # 最大重试次数
-        retry_delay = 1  # 重试间隔时间(秒)
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    allow_redirects=False,
-                    verify_ssl=False
-                )
-                txt = await res.text()
-                break  # 请求成功，退出重试循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries:  # 最后一次重试失败
-                    raise IntegrationError(f"无法连接到服务器(update_summary): {str(e)}")
-                await asyncio.sleep(retry_delay)  # 等待后重试
-            # except aiohttp.ClientResponseError as e:
-            #     raise IntegrationError(f"服务器返回错误(update_summary): HTTP {e.status}")
-            except asyncio.TimeoutError:
-                if attempt == max_retries:
-                    raise IntegrationError("请求超时，请检查网络连接(update_summary)")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries:
-                    raise IntegrationError(f"网络请求失败(update_summary): {type(e).__name__}: {str(e)}")
-                await asyncio.sleep(retry_delay)
-                
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -525,35 +546,11 @@ class TianqiClient:
 
         return self.data
 
+    @aiohttp_retry()
     async def update_alarms(self, **kwargs):
         api = self.api_url('dingzhi/%s.html' % kwargs.get('area_id', self.area_id))
-        txt = ''
-        max_retries = 3  # 最大重试次数
-        retry_delay = 1  # 重试间隔时间(秒)
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    allow_redirects=False,
-                    verify_ssl=False
-                )
-                txt = await res.text()
-                break  # 请求成功，退出重试循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries:  # 最后一次重试失败
-                    raise IntegrationError(f"无法连接到服务器(update_alarms): {str(e)} (重试 {attempt}/{max_retries} 次)")
-                await asyncio.sleep(retry_delay)  # 等待后重试
-            # except aiohttp.ClientResponseError as e:
-            #     raise IntegrationError(f"服务器返回错误(update_alarms): HTTP {e.status}")
-            except asyncio.TimeoutError:
-                if attempt == max_retries:
-                    raise IntegrationError(f"请求超时，请检查网络连接(update_alarms) (重试 {attempt}/{max_retries} 次)")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries:
-                    raise IntegrationError(f"网络请求失败(update_alarms): {type(e).__name__}: {str(e)} (重试 {attempt}/{max_retries} 次)")
-                await asyncio.sleep(retry_delay)
-        
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -567,36 +564,11 @@ class TianqiClient:
 
         return self.data
 
+    @aiohttp_retry()
     async def update_dailies(self, **kwargs):
         api = self.api_url('weixinfc/%s.html' % kwargs.get('area_id', self.area_id))
-        txt = ''
-        max_retries = 3  # 最大重试次数
-        retry_delay = 1  # 重试间隔时间(秒)
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    allow_redirects=False,
-                    verify_ssl=False
-                )
-                txt = await res.text()
-                break  # 请求成功，退出重试循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries - 1:  # 最后一次重试失败
-                    raise IntegrationError(f"无法连接到服务器(update_dailies): {str(e)}")
-                await asyncio.sleep(retry_delay)  # 等待后重试
-            # except aiohttp.ClientResponseError as e:
-            #     raise IntegrationError(f"服务器返回错误(update_dailies): HTTP {e.status}")
-            except asyncio.TimeoutError:
-                if attempt == max_retries - 1:
-                    raise IntegrationError("请求超时，请检查网络连接(update_dailies)")
-                await asyncio.sleep(retry_delay)
-
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise IntegrationError(f"网络请求失败(update_dailies): {type(e).__name__}: {str(e)}")
-                await asyncio.sleep(retry_delay)
-        
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -609,35 +581,11 @@ class TianqiClient:
 
         return self.data
 
+    @aiohttp_retry()
     async def update_hourlies(self, **kwargs):
         api = self.api_url('wap_180h/%s.html' % kwargs.get('area_id', self.area_id))
-        txt = ''
-        max_retries = 3  # 最大重试次数
-        retry_delay = 1  # 重试间隔时间(秒)
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    allow_redirects=False,
-                    verify_ssl=False
-                )
-                txt = await res.text()
-                break  # 成功则跳出循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries - 1:  # 最后一次重试仍然失败
-                    raise IntegrationError(f"无法连接到服务器(update_hourlies): {str(e)}")
-                await asyncio.sleep(retry_delay)  # 等待后重试
-            # except aiohttp.ClientResponseError as e:
-            #     raise IntegrationError(f"服务器返回错误(update_hourlies): HTTP {e.status}")
-            except asyncio.TimeoutError:
-                if attempt == max_retries - 1:
-                    raise IntegrationError("请求超时，请检查网络连接(update_hourlies)")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise IntegrationError(f"网络请求失败(update_hourlies): {type(e).__name__}: {str(e)}")
-                await asyncio.sleep(retry_delay)
-        
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api}')
         if res.status != 200:
@@ -650,40 +598,15 @@ class TianqiClient:
 
         return self.data
 
+    @aiohttp_retry()
     async def update_minutely(self, **kwargs):
         api = self.api_url('webgis_rain_new/webgis/minute', 'd3')
-        txt = ''
         pms = {
             'lat': self.station.latitude,
             'lon': self.station.longitude,
         }
-        max_retries = 3  # 最大重试次数
-        retry_delay = 1  # 重试间隔（秒）
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    params=pms,
-                    allow_redirects=False,
-                    verify_ssl=False
-                )
-                txt = await res.text()
-                break  # 成功则直接退出循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries - 1:  # 最后一次重试仍然失败
-                    raise IntegrationError(f"无法连接到服务器(update_minutely): {str(e)}")
-                await asyncio.sleep(retry_delay)  # 等待后重试
-            # except aiohttp.ClientResponseError as e:
-            #     raise IntegrationError(f"服务器返回错误(update_minutely): HTTP {e.status}")
-            except asyncio.TimeoutError:
-                if attempt == max_retries - 1:
-                    raise IntegrationError("请求超时，请检查网络连接(update_minutely)")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise IntegrationError(f"网络请求失败(update_minutely): {type(e).__name__}: {str(e)}")
-                await asyncio.sleep(retry_delay)
-                
+        res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
         if not txt:
             raise IntegrationError(f'Empty response from: {api} {pms}')
         if res.status != 200:
@@ -696,32 +619,11 @@ class TianqiClient:
 
         return self.data
 
+    @aiohttp_retry()
     async def update_observe(self, **kwargs):
         api = self.api_url('weather/%s.shtml' % kwargs.get('area_id', self.area_id), 'www')
-        txt = ''
-        max_retries = 3
-        retry_delay = 1  # 重试延迟时间(秒)
-        for attempt in range(max_retries):
-            try:
-                res = await self.http.get(
-                    api,
-                    allow_redirects=False,
-                    verify_ssl=False  
-                )
-                txt = await res.text()
-                break  # 如果成功，跳出循环
-            except aiohttp.ClientConnectorError as e:
-                if attempt == max_retries - 1:  # 最后一次尝试仍然失败
-                    raise IntegrationError(f"无法连接到服务器(update_observe): {str(e)}")
-                await asyncio.sleep(retry_delay)
-            except asyncio.TimeoutError:
-                if attempt == max_retries - 1:
-                    raise IntegrationError("请求超时，请检查网络连接(update_observe)")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise IntegrationError(f"网络请求失败(update_observe): {type(e).__name__}: {str(e)}")
-                await asyncio.sleep(retry_delay)
+        res = await self.http.get(api, allow_redirects=False, verify_ssl=False)
+        txt = await res.text()
 
         fmt = '%Y%m%d%H%M'
         dat = {}
