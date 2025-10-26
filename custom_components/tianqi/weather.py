@@ -71,6 +71,7 @@ class WeatherEntity(BaseEntity):
         self._attr_unique_id = f'{client.entry_id}-{ENTITY_DOMAIN}'
         self._attr_attribution = None
         self._attr_supported_features = 0
+        self._attr_extra_state_attributes = {}
         self._attr_device_info = client.device_info
         if WeatherEntityFeature:
             self._attr_supported_features |= WeatherEntityFeature.FORECAST_DAILY
