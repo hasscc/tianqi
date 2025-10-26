@@ -131,14 +131,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         },
     })
 
-    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
-
     entry.async_on_unload(entry.add_update_listener(async_update_options))
+
     if client := await TianqiClient.from_config(hass, entry):
         entry.async_on_unload(
             hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, client.unload)
         )
 
+    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
     await client.init()
     return ret
 
@@ -169,7 +169,7 @@ async def async_add_setuper(hass: HomeAssistant, config, domain, setuper):
 
 
 def aiohttp_retry(
-    max_retries: int = 3,
+    max_retries: int = 10,
     backoff_factor: float = 2.0,
     retry_on_status: Optional[Set[int]] = None,
     exceptions: Tuple[Type[BaseException], ...] = (ClientError, asyncio.TimeoutError),
@@ -217,6 +217,7 @@ class TianqiClient:
         self.hass = hass
         self.config = config or {}
         self.entry_id = self.config.get('entry_id') or 'yaml'
+        self.entry = hass.config_entries.async_get_entry(self.entry_id)
         self.data = {}
         self.setups = {}
         self.entities = {}
@@ -225,9 +226,8 @@ class TianqiClient:
         self.http = aiohttp_client.async_create_clientsession(
             hass,
             timeout=aiohttp.ClientTimeout(
-                total=30,
-                sock_connect=15,  # 连接超时
-                sock_read=15,     # 读取超时
+                total=60,
+                connect=30,
             ),
             auto_cleanup=False,
         )
@@ -240,36 +240,42 @@ class TianqiClient:
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='alarms',
+                config_entry=self.entry,
                 update_method=self.update_alarms,
                 update_interval=timedelta(minutes=5),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='summary',
+                config_entry=self.entry,
                 update_method=self.update_summary_and_entities,
                 update_interval=timedelta(seconds=60),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='dailies',
+                config_entry=self.entry,
                 update_method=self.update_dailies,
                 update_interval=timedelta(minutes=60),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='observe',
+                config_entry=self.entry,
                 update_method=self.update_observe,
                 update_interval=timedelta(minutes=30),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='hourlies',
+                config_entry=self.entry,
                 update_method=self.update_hourlies,
                 update_interval=timedelta(minutes=30),
             ),
             DataUpdateCoordinator(
                 hass, _LOGGER,
                 name='minutely',
+                config_entry=self.entry,
                 update_method=self.update_minutely,
                 update_interval=timedelta(minutes=2),
             ),
@@ -452,6 +458,7 @@ class TianqiClient:
     def station_name(self):
         return self.station.area_name or self.station_code
 
+    @aiohttp_retry()
     async def get_station(self, area_id=None, lat=None, lng=None):
         api = self.api_url('geong/v1/api', node='d7')
         pms = {'method': 'stationinfo'}
@@ -694,13 +701,13 @@ class XEntity(Entity):
 
     async def async_added_to_hass(self):
         """Run when entity about to be added to hass."""
+        self.added = True
         if hasattr(self, 'async_get_last_state'):
             state: State = await self.async_get_last_state()
             if state:
                 self.async_restore_last_state(state.state, state.attributes)
                 return
 
-        self.added = True
         await super().async_added_to_hass()
 
     @callback
