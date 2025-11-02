@@ -9,7 +9,7 @@ import voluptuous as vol
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Callable, Set, Type, Tuple
-from aiohttp import ClientError, ClientResponseError
+from aiohttp import ClientError, ClientResponseError, ClientConnectorDNSError
 
 from homeassistant.const import (
     Platform,
@@ -196,7 +196,12 @@ def aiohttp_retry(
                     last_exception = exc
                     if attempt == max_retries:
                         break
+                        
                     is_retryable_status = False
+                    # DNS 错误和超时
+                    if isinstance(exc, ClientConnectorDNSError):
+                        is_retryable_status = True
+                    # HTTP 状态码错误
                     if isinstance(exc, ClientResponseError):
                         if exc.status in retry_on_status:
                             is_retryable_status = True
