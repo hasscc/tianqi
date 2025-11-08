@@ -626,7 +626,10 @@ class TianqiClient:
         else:
             self.data.pop('minutely_text', None)
 
-        self.data['minutely'] = json.loads(txt) or {}
+        try:
+            self.data['minutely'] = json.loads(txt) or {}
+        except Exception:
+            self.data['minutely'] = {}
         self.push_state(self.decode(self.data['minutely']))
 
         return self.data
