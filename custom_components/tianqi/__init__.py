@@ -612,24 +612,53 @@ class TianqiClient:
 
     @aiohttp_retry()
     async def update_minutely(self, **kwargs):
-        api = self.api_url('webgis_rain_new/webgis/minute', 'd3')
-        pms = {
-            'lat': self.station.latitude,
-            'lon': self.station.longitude,
-        }
-        res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
-        txt = await res.text()
-        if not txt:
-            raise IntegrationError(f'Empty response from: {api} {pms}')
-        if res.status != 200:
-            self.data['minutely_text'] = txt
-        else:
-            self.data.pop('minutely_text', None)
+        try:
+            api = self.api_url('webgis_rain_new/webgis/minute', 'd3')
+            pms = {
+                'lat': self.station.latitude,
+                'lon': self.station.longitude,
+            }
+        
+        # 添加超时控制
+            async with asyncio.timeout(30):  # 30秒超时
+                res = await self.http.get(api, params=pms, allow_redirects=False, verify_ssl=False)
+                txt = await res.text()
+            
+            if not txt:
+                _LOGGER.warning("Empty response from minutely API for %s", self.station_name)
+                self.data['minutely'] = {}
+                return self.data
+            
+            if res.status != 200:
+                _LOGGER.warning("Minutely API returned status %s for %s", res.status, self.station_name)
+                self.data['minutely_text'] = txt
+                self.data['minutely'] = {}
+            else:
+                self.data.pop('minutely_text', None)
+                try:
+                  self.data['minutely'] = json.loads(txt) or {}
+                except json.JSONDecodeError as e:
+                    _LOGGER.warning("Failed to parse minutely JSON for %s: %s", self.station_name, e)
+                    self.data['minutely'] = {}
 
-        self.data['minutely'] = json.loads(txt) or {}
-        self.push_state(self.decode(self.data['minutely']))
-
-        return self.data
+            self.push_state(self.decode(self.data['minutely']))
+            return self.data
+        
+        except asyncio.CancelledError:
+            # 请求被取消 - 正常情况，不需要记录为错误
+            _LOGGER.debug("Minutely data request was cancelled for station %s", self.station_name)
+            self.data['minutely'] = {}
+            return self.data
+        except asyncio.TimeoutError:
+            # 请求超时
+            _LOGGER.warning("Minutely data request timed out for station %s", self.station_name)
+            self.data['minutely'] = {}
+            return self.data
+        except Exception as e:
+            # 其他异常
+            _LOGGER.error("Unexpected error fetching minutely data for station %s: %s", self.station_name, e)
+            self.data['minutely'] = {}
+            return self.data
 
     @aiohttp_retry()
     async def update_observe(self, **kwargs):
