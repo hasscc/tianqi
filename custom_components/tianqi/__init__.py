@@ -9,7 +9,6 @@ import voluptuous as vol
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Callable, Set, Type, Tuple
-from aiohttp import ClientError, ClientResponseError
 
 from homeassistant.const import (
     Platform,
@@ -172,7 +171,7 @@ def aiohttp_retry(
     max_retries: int = 10,
     backoff_factor: float = 2.0,
     retry_on_status: Optional[Set[int]] = None,
-    exceptions: Tuple[Type[BaseException], ...] = (ClientError, asyncio.TimeoutError),
+    exceptions: Tuple[Type[BaseException], ...] = (aiohttp.ClientError, asyncio.TimeoutError),
 ):
     """
     aiohttp 请求自动重试装饰器。
@@ -196,8 +195,8 @@ def aiohttp_retry(
                     last_exception = exc
                     if attempt == max_retries:
                         break
-                    is_retryable_status = False
-                    if isinstance(exc, ClientResponseError):
+                    is_retryable_status = isinstance(exc, aiohttp.ClientConnectorDNSError)
+                    if isinstance(exc, aiohttp.ClientResponseError):
                         if exc.status in retry_on_status:
                             is_retryable_status = True
                     if not is_retryable_status:
