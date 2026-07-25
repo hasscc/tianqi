@@ -119,8 +119,15 @@ class AlarmsBinarySensorConv(Converter):
         code = None
         titles = []
         alarms = []
-        for v in client.data.get(self.prop) or []:
-            code = f'{v.get("w4")}{v.get("w6")}'
+        raw_alarms = sorted(
+            client.data.get(self.prop) or [],
+            key=lambda v: v.get('w6', ''),
+            reverse=True,
+        )
+        for v in raw_alarms:
+            alarm_code = f'{v.get("w4")}{v.get("w6")}'
+            if code is None:
+                code = alarm_code
             title = v.get('w13', '')
             titles.append(re.sub(r'.+发布的?(.+预警)', r'\1', title))
             alarms.append({
@@ -128,12 +135,12 @@ class AlarmsBinarySensorConv(Converter):
                 'description': v.get('w9', ''),
                 'province': v.get('w1'),
                 'city': v.get('w2'),
-                'code': code,
+                'code': alarm_code,
                 'alertld': v.get('w16'),
                 'link': client.web_url('warning/publish_area.shtml?code=%s' % client.area_id),
             })
         payload['warning'] = len(alarms) > 0
-        payload['title'] = ', '.join(set(titles))
+        payload['title'] = ', '.join(dict.fromkeys(titles))
         payload['alarms'] = alarms
         src = client.web_url('m2/i/about/alarmpic/%s.gif' % code, 'www') if code else None
         self.option['entity_picture'] = f'https://cfrp.hacs.vip/{src}' if src else None
