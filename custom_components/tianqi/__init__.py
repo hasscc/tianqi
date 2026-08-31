@@ -18,8 +18,15 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
+
+try:  # UnitOfDensity is introduced in HA Core 2026.7
+    from homeassistant.const import UnitOfDensity
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
+    
+except ImportError:  # CONCENTRATION_MICROGRAMS_PER_CUBIC_METER will be removed in HA Core 2027.8
+    from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
+
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.config_entries import ConfigEntry
