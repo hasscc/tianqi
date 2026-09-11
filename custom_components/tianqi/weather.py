@@ -240,7 +240,7 @@ class WeatherEntity(BaseEntity):
             if observe:
                 row['native_precipitation'] = observe.get('rain')
             try:
-                day = datetime.strptime(ymd, '%Y%m%d%H%M')
+                day = datetime.strptime(ymd[:12], '%Y%m%d%H%M')
                 tim = dt.now().replace(
                     month=day.month, day=day.day, hour=day.hour,
                     minute=0, second=0, microsecond=0,
