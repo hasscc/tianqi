@@ -18,8 +18,13 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
+try:
+    from homeassistant.const import UnitOfDensity
+    PM25_UNIT = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
+except ImportError:  # HA < 2026.11
+    from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
+    PM25_UNIT = CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.config_entries import ConfigEntry
@@ -306,7 +311,7 @@ class TianqiClient:
             NumberSensorConv('pm25', prop='aqi_pm25').with_option({
                 'device_class': 'pm25',
                 'state_class': 'measurement',
-                'unit_of_measurement': CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                'unit_of_measurement': PM25_UNIT,
             }),
             NumberSensorConv('atmospheric_pressure', prop='qy').with_option({
                 'device_class': 'atmospheric_pressure',
