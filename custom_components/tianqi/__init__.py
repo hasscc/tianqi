@@ -18,7 +18,7 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+    UnitOfDensity,
 )
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers.entity import Entity
@@ -306,7 +306,7 @@ class TianqiClient:
             NumberSensorConv('pm25', prop='aqi_pm25').with_option({
                 'device_class': 'pm25',
                 'state_class': 'measurement',
-                'unit_of_measurement': CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                'unit_of_measurement': UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
             }),
             NumberSensorConv('atmospheric_pressure', prop='qy').with_option({
                 'device_class': 'atmospheric_pressure',
