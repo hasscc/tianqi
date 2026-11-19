@@ -646,7 +646,7 @@ class TianqiClient:
             lst = rdt.get('od2') or []
             lst.reverse()
             try:
-                stm = datetime.strptime(rdt.get('od0', ''), fmt)
+                stm = datetime.strptime((rdt.get('od0') or '')[:12], fmt)
             except ValueError as exc:
                 dat = {
                     'error': str(exc),
