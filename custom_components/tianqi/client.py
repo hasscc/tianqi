@@ -54,6 +54,19 @@ RE_DAILIES = re.compile(r"fc\s*=\s*({.*})", re.DOTALL)
 RE_HOURLIES = re.compile(r"fc180\s*=\s*({.*})", re.DOTALL)
 RE_OBSERVE = re.compile(r"observe24h_data\s*=\s*({.*?})\s*;", re.DOTALL)
 OBSERVE_TIME_FORMAT = "%Y%m%d%H%M"
+# `od0` is "YYYYMMDDHHMM", but some stations started to append the seconds.
+OBSERVE_TIME_FORMATS = (OBSERVE_TIME_FORMAT, "%Y%m%d%H%M%S")
+
+
+def _parse_datetime(value: Any, formats: tuple[str, ...]) -> datetime | None:
+    """Parse a value with the first of the given formats that matches."""
+    text = f"{value}".strip()
+    for time_format in formats:
+        try:
+            return datetime.strptime(text, time_format)
+        except ValueError:
+            continue
+    return None
 
 
 class TianqiClient:
@@ -435,15 +448,13 @@ class TianqiClient:
         observed = (json.loads(match.group(1)) or {}).get("od") or {}
         rows = observed.get("od2") or []
         rows.reverse()
-        try:
-            start = datetime.strptime(observed.get("od0", ""), OBSERVE_TIME_FORMAT)
-        except ValueError as exc:
-            data = {
-                "error": str(exc),
-                "api": self.api.async_url(f"weather/{area_id}.shtml", "www"),
-                "data": observed,
-            }
-            _LOGGER.warning("Update observe failed: %s", data)
+        start = _parse_datetime(observed.get("od0", ""), OBSERVE_TIME_FORMATS)
+        if start is None:
+            _LOGGER.warning(
+                "Unable to parse the observation time %s of %s",
+                observed.get("od0"),
+                self.api.async_url(f"weather/{area_id}.shtml", "www"),
+            )
             return data
 
         for row in rows:
