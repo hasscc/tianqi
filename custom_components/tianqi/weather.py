@@ -278,7 +278,7 @@ class WeatherEntity(BaseEntity):
                 "skycon": condition[1],
                 "native_precipitation": condition[2],
             }
-            stamp = item.get("jf", "")
+            stamp = str(item.get("jf") or "")[:12]
             observed = (self.client.data.get("observe") or {}).get(stamp) or {}
             if observed:
                 row["native_precipitation"] = observed.get("rain")
