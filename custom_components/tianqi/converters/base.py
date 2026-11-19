@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 # `UnitOfDensity` (the replacement for the deprecated
 # `CONCENTRATION_MICROGRAMS_PER_CUBIC_METER`) is only available in
-# Home Assistant 2026.10 and newer.
+# Home Assistant 2026.7 and newer, so the literal keeps older versions working.
+# Home Assistant normalizes the micro sign for the sensor unit check
+# (`AMBIGUOUS_UNITS` in the sensor component).
 MICROGRAMS_PER_CUBIC_METER = "µg/m³"
 
 

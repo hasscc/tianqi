@@ -36,7 +36,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if not (domain := (config.get(DOMAIN) or {}).get(CONF_DOMAIN)):
         return True
 
-    yaml_config = {CONF_DOMAIN: domain}
+    yaml_config = dict(config.get(DOMAIN) or {})
     client = await TianqiClient.async_get(hass, yaml_config)
     hass.data[DOMAIN]["latest_domain"] = domain
     _async_register_services(hass, client)

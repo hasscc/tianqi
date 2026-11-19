@@ -153,13 +153,8 @@ class TianqiApi:
             allow_redirects=False,
             timeout=HTTP_TIMEOUT,
         )
-        text = await response.text()
-        if not text:
-            detail = f" {dict(params)}" if params else ""
-            raise IntegrationError(f"Empty response from: {url}{detail}")
-        return response.status, text
+        return response.status, await response.text()
 
-    @aiohttp_retry()
     async def async_get_station(
         self,
         area_id: str | None = None,
@@ -183,6 +178,8 @@ class TianqiApi:
             "d7",
             params={"params": json.dumps(params, separators=(",", ":"))},
         )
+        if not text:
+            raise IntegrationError(f"Empty response for station info: {params}")
         try:
             payload = json.loads(text) or {}
         except ValueError as exc:
@@ -198,6 +195,8 @@ class TianqiApi:
         params = {"cityname": name}
         _, text = await self.async_fetch("search", "toy1", params=params)
         areas: dict[str, str] = {}
+        if not text:
+            return areas
         for item in json.loads(text.strip("()")) or []:
             if not (ref := item.get("ref")):
                 continue

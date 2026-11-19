@@ -69,6 +69,20 @@ def _parse_datetime(value: Any, formats: tuple[str, ...]) -> datetime | None:
     return None
 
 
+def _parse_observe_time(value: Any) -> datetime | None:
+    """Parse the observation time of the last 24 hours data set.
+
+    `od0` is "YYYYMMDDHHMM", some stations append the seconds. Anything else
+    falls back to the leading 12 characters, so a malformed suffix does not
+    discard the whole data set.
+    """
+    text = f"{value}".strip()
+    parsed = _parse_datetime(text, OBSERVE_TIME_FORMATS)
+    if parsed is None:
+        parsed = _parse_datetime(text[:12], (OBSERVE_TIME_FORMAT,))
+    return parsed
+
+
 class TianqiClient:
     """Keep the shared state for a single config entry (or YAML config)."""
 
@@ -431,7 +445,13 @@ class TianqiClient:
                 "lon": self.station.longitude,
             },
         )
-        self.data["minutely"] = json.loads(text) or {}
+        if not text:
+            return self.data
+        try:
+            self.data["minutely"] = json.loads(text) or {}
+        except ValueError:
+            _LOGGER.warning("Invalid minutely response: %s", text[:200])
+            return self.data
         self.push_state(self.decode(self.data["minutely"]))
         await self.async_update_entities()
         return self.data
@@ -448,7 +468,7 @@ class TianqiClient:
         observed = (json.loads(match.group(1)) or {}).get("od") or {}
         rows = observed.get("od2") or []
         rows.reverse()
-        start = _parse_datetime(observed.get("od0", ""), OBSERVE_TIME_FORMATS)
+        start = _parse_observe_time(observed.get("od0"))
         if start is None:
             _LOGGER.warning(
                 "Unable to parse the observation time %s of %s",
