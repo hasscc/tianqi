@@ -22,7 +22,7 @@ from homeassistant.const import (
 try:
     from homeassistant.const import UnitOfDensity
     PM25_UNIT = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
-except ImportError:  # HA < 2026.11
+except (ImportError, AttributeError):  # UnitOfDensity was added in HA 2026.7
     from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
     PM25_UNIT = CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
 from homeassistant.core import HomeAssistant, State, ServiceCall, SupportsResponse, callback
