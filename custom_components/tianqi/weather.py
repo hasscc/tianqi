@@ -40,7 +40,7 @@ from homeassistant.util import slugify
 
 from . import async_add_setuper
 from .client import TianqiClient
-from .const import HTTP_REFERER
+from .const import DOMAIN, HTTP_REFERER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class WeatherEntity(BaseEntity):
         self.hass = client.hass
         self.entity_id = f"{Platform.WEATHER}.{slugify(client.station_code)}"
         self._attr_name = client.station_name
-        self._attr_unique_id = f"{client.entry_id}-{Platform.WEATHER}"
+        self._attr_unique_id = f"{client.entry_id}-{DOMAIN}"
         self._attr_device_info = client.device_info
         self._attr_extra_state_attributes: dict[str, Any] = {}
         self._attr_supported_features = (
