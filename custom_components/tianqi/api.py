@@ -1,4 +1,4 @@
-"""HTTP API for the tianqi integration (weather.com.cn)."""
+"""HTTP API for the tianqi integration."""
 
 from __future__ import annotations
 

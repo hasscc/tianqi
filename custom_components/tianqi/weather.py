@@ -325,7 +325,7 @@ class WeatherEntity(BaseEntity):
 
 
 class ConditionCodes(Enum):
-    """Weather condition codes of weather.com.cn.
+    """Weather condition codes of the upstream data source.
 
     Value layout: (state, skycon, precipitation in mm/h, cloud coverage, name).
     """
