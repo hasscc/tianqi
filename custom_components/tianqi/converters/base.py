@@ -1,146 +1,195 @@
-from dataclasses import dataclass
-from typing import Any, Optional, TYPE_CHECKING
+"""Converters translating tianqi payloads into Home Assistant states."""
+
+from __future__ import annotations
+
 import re
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import (
+    Platform,
+    UnitOfSpeed,
+)
 
 if TYPE_CHECKING:
-    from .. import TianqiClient as Client
+    from ..client import TianqiClient
+
+# `UnitOfDensity` (the replacement for the deprecated
+# `CONCENTRATION_MICROGRAMS_PER_CUBIC_METER`) is only available in
+# Home Assistant 2026.7 and newer, so the literal keeps older versions working.
+# Home Assistant normalizes the micro sign for the sensor unit check
+# (`AMBIGUOUS_UNITS` in the sensor component).
+MICROGRAMS_PER_CUBIC_METER = "µg/m³"
 
 
 @dataclass
 class Converter:
-    attr: str  # hass attribute
-    domain: Optional[str] = None  # hass domain
+    """Base converter between a raw payload field and an entity."""
 
-    prop: Optional[str] = None
-    parent: Optional[str] = None
-
-    enabled: Optional[bool] = True  # support: True, False, None (lazy setup)
-    poll: bool = False  # hass should_poll
+    attr: str
+    domain: Platform | None = None
+    prop: str | None = None
+    parent: str | None = None
+    enabled: bool | None = True  # True, False or None (created on demand)
+    poll: bool = False
     ignore_prop: bool = False
 
-    # don't init with dataclass because no type:
-    childs = None  # set or dict? of children attributes
-    option = None
+    # Declared by subclasses, never mutated in place.
+    childs: ClassVar[set[str] | None] = None
+    option: ClassVar[dict[str, Any] | None] = None
 
-    # to hass
-    def decode(self, client: "Client", payload: dict, value: Any):
+    def decode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert a payload value into entity states."""
         payload[self.attr] = value
 
-    # from hass
-    def encode(self, client: "Client", payload: dict, value: Any):
+    def encode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert an entity state back into a payload value."""
         payload[self.prop or self.attr] = value
 
-    def with_option(self, option: dict):
-        self.option = option
+    def with_option(self, option: dict[str, Any]) -> Converter:
+        """Return the converter with extra entity options."""
+        self.option = dict(option)
         return self
 
 
 @dataclass
 class SensorConv(Converter):
-    domain: Optional[str] = 'sensor'
+    """Converter for a plain sensor."""
+
+    domain: Platform | None = Platform.SENSOR
 
 
 @dataclass
 class NumberSensorConv(SensorConv):
-    unit: Optional[str] = ' '
-    precision: Optional[int] = 1
+    """Converter for a numeric sensor."""
 
-    def decode(self, client: "Client", payload: dict, value: Any):
+    unit: str | None = " "
+    precision: int | None = 1
+
+    def decode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert a value with a trailing unit into a number."""
         try:
-            val = float(f'{value}'.strip().replace(self.unit, ''))
-            val = round(val, self.precision)
+            number = float(f"{value}".strip().replace(self.unit or "", ""))
+            number = round(number, self.precision or 0)
         except (TypeError, ValueError):
-            val = None
-        payload[self.attr] = val
+            number = None
+        payload[self.attr] = number
 
 
 @dataclass
 class WindSpeedSensorConv(NumberSensorConv):
-    attr: str = 'wind_speed'
-    prop: Optional[str] = 'wse'
-    unit: Optional[str] = 'km/h'
+    """Converter for wind speed, with the related wind attributes."""
+
+    attr: str = "wind_speed"
+    prop: str | None = "wse"
+    unit: str | None = "km/h"
     option = {
-        'device_class': 'wind_speed',
-        'state_class': 'measurement',
-        'unit_of_measurement': unit,
+        "device_class": SensorDeviceClass.WIND_SPEED,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit_of_measurement": UnitOfSpeed.KILOMETERS_PER_HOUR,
     }
     childs = {
-        'wind_direction',
-        'wind_direction_code',
-        'wind_level',
-        'wind_speed_and_unit',
+        "wind_direction",
+        "wind_direction_code",
+        "wind_level",
+        "wind_speed_and_unit",
     }
 
-    def decode(self, client: "Client", payload: dict, value: Any):
+    def decode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert wind speed and add the matching wind attributes."""
         super().decode(client, payload, value)
-        dataSK = client.data.get('dataSK') or {}
-        payload.update({
-            'wind_direction': dataSK.get('WD'),
-            'wind_direction_code': dataSK.get('wde'),
-            'wind_level': dataSK.get('WS'),
-            'wind_speed_and_unit': dataSK.get('wse'),
-        })
+        data = client.data.get("dataSK") or {}
+        payload.update(
+            {
+                "wind_direction": data.get("WD"),
+                "wind_direction_code": data.get("wde"),
+                "wind_level": data.get("WS"),
+                "wind_speed_and_unit": data.get("wse"),
+            }
+        )
+
 
 @dataclass
 class ForecastMinutelySensorConv(SensorConv):
-    attr: str = 'forecast_minutely'
-    prop: Optional[str] = 'msg'
+    """Converter for the minutely forecast message and its attributes."""
+
+    attr: str = "forecast_minutely"
+    prop: str | None = "msg"
     option = {
-        'icon': 'mdi:tooltip',
-        'payload_attrs': True,
+        "icon": "mdi:tooltip",
+        "payload_attrs": True,
     }
 
-    def decode(self, client: "Client", payload: dict, value: Any):
-        minutely = client.data.get('minutely') or {}
-        times = minutely.get('times', [])
-        values = minutely.get('values', [])
-        minutes = dict(zip(times, values)) if len(times) == len(values) else {}
-        payload.update({
-            'forecast_minutely': minutely.get('msg'),
-            **minutes,
-        })
+    def decode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert the minutely forecast into a message plus attributes."""
+        minutely = client.data.get("minutely") or {}
+        times = minutely.get("times") or []
+        values = minutely.get("values") or []
+        minutes = (
+            dict(zip(times, values, strict=False)) if len(times) == len(values) else {}
+        )
+        payload.update(
+            {
+                "forecast_minutely": minutely.get("msg"),
+                **minutes,
+            }
+        )
 
 
 @dataclass
 class AlarmsBinarySensorConv(Converter):
-    attr: str = 'warning'
-    prop: Optional[str] = 'alarms'
-    domain: Optional[str] = 'binary_sensor'
+    """Converter for weather alarms."""
+
+    attr: str = "warning"
+    prop: str | None = "alarms"
+    domain: Platform | None = Platform.BINARY_SENSOR
     option = {
-        'device_class': 'problem',
+        "device_class": BinarySensorDeviceClass.PROBLEM,
     }
     childs = {
-        'title',
-        'alarms',
+        "title",
+        "alarms",
     }
 
-    def decode(self, client: "Client", payload: dict, value: Any):
+    def decode(self, client: TianqiClient, payload: dict[str, Any], value: Any) -> None:
+        """Convert the alarm list into a binary state plus attributes."""
         super().decode(client, payload, value)
         code = None
-        titles = []
-        alarms = []
+        titles: list[str] = []
+        alarms: list[dict[str, Any]] = []
         raw_alarms = sorted(
-            client.data.get(self.prop) or [],
-            key=lambda v: v.get('w6', ''),
+            client.data.get(self.prop or "") or [],
+            key=lambda alarm: alarm.get("w6", ""),
             reverse=True,
         )
-        for v in raw_alarms:
-            alarm_code = f'{v.get("w4")}{v.get("w6")}'
+        for alarm in raw_alarms:
+            alarm_code = f"{alarm.get('w4')}{alarm.get('w6')}"
             if code is None:
                 code = alarm_code
-            title = v.get('w13', '')
-            titles.append(re.sub(r'.+发布的?(.+预警)', r'\1', title))
-            alarms.append({
-                'title': title,
-                'description': v.get('w9', ''),
-                'province': v.get('w1'),
-                'city': v.get('w2'),
-                'code': alarm_code,
-                'alertld': v.get('w16'),
-                'link': client.web_url('warning/publish_area.shtml?code=%s' % client.area_id),
-            })
-        payload['warning'] = len(alarms) > 0
-        payload['title'] = ', '.join(dict.fromkeys(titles))
-        payload['alarms'] = alarms
-        src = client.web_url('m2/i/about/alarmpic/%s.gif' % code, 'www') if code else None
-        self.option['entity_picture'] = f'https://cfrp.hacs.vip/{src}' if src else None
+            title = alarm.get("w13", "")
+            titles.append(re.sub(r".+发布的?(.+预警)", r"\1", title))
+            alarms.append(
+                {
+                    "title": title,
+                    "description": alarm.get("w9", ""),
+                    "province": alarm.get("w1"),
+                    "city": alarm.get("w2"),
+                    "code": alarm_code,
+                    "alertld": alarm.get("w16"),
+                    "link": client.web_url(
+                        f"warning/publish_area.shtml?code={client.area_id}"
+                    ),
+                }
+            )
+        payload["warning"] = len(alarms) > 0
+        payload["title"] = ", ".join(dict.fromkeys(titles))
+        payload["alarms"] = alarms
+        picture = (
+            client.web_url(f"m2/i/about/alarmpic/{code}.gif", "www") if code else None
+        )
+        self.option = {
+            **(self.option or {}),
+            "entity_picture": f"https://cfrp.hacs.vip/{picture}" if picture else None,
+        }

@@ -28,3 +28,9 @@ update_dailies:
 
 update_hourlies:
   description: 更新天气预报(每小时)
+
+update_minutely:
+  description: 更新天气预报(逐分钟)
+
+update_observe:
+  description: 更新最近24小时的观测数据
